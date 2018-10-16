@@ -1,4 +1,5 @@
-#include "main.h"
+#include <hal.h>
+#include "display.h"
 
 void hal_print(const char *string)
 {

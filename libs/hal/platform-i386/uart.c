@@ -1,6 +1,7 @@
 /* NOTE: THIS UART IMPLEMENTATION IS WRITE-ONLY, TO PRINT DEBUG INFORMATION. */
 
 #include "ports.h"
+#include <stdbool.h>
 #include <stdint.h>
 
 // http://wiki.osdev.org/Serial_ports

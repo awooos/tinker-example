@@ -1,1 +1,6 @@
 tinker/
+*.o
+*.exe
+Makefile
+src/kernel.c
+isofs/
