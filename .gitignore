@@ -4,3 +4,4 @@ tinker/
 Makefile
 src/kernel.c
 isofs/
+/include/awoo/build_info.h
