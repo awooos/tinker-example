@@ -35,7 +35,7 @@ void vga_move_cursor(uint8_t row_, uint8_t col_)
     hal_outb(VGA_DATA_REGISTER, (uint8_t)position); // Actually set it.
 }
 
-void vga_clear()
+void vga_clear(void)
 {
     // We to avoid inlining a freaking 4KB string of spaces,
     // we initialize it to null bytes and set it to spaces afterwards.
@@ -55,7 +55,7 @@ void vga_clear()
     vga_move_cursor(0, 0);
 }
 
-void vga_scroll()
+void vga_scroll(void)
 {
     for (uint16_t i = 0; i < (VIDEO_HEIGHT - 1); i++) {
         for (uint16_t _col = 0; _col < VIDEO_WIDTH; _col++) {
@@ -70,8 +70,8 @@ void vga_scroll()
     vga_move_cursor(VIDEO_HEIGHT - 1, 0);
 }
 
-// Print a string to the display.
-void vga_print(const char *string)
+// Print a character to the display.
+int vga_putchar(int c)
 {
     static char *video = 0;
 
@@ -83,49 +83,56 @@ void vga_print(const char *string)
         vga_clear();
     }
 
-    for (; 0 != *string; string++) {
-        // Carriage returns.
-        if (*string == '\r') {
-            // Set the column to zero.
-            col = 0;
-            continue;
-        }
-
-        // Newlines.
-        if (*string == '\n') {
-            // Set the column to zero (implicit carriage return),
-            // and increment the row.
-            col = 0;
-            row += 1;
-            continue;
-        }
-
-        // If we're past the right side of the screen,
-        // wrap to the next line.
-        if (col >= VIDEO_WIDTH) {
-            col = 0;
-            row += 1;
-        }
-
-        // If we're past the bottom of the screen,
-        // scroll the screen up one line, then print.
-        if (row >= VIDEO_HEIGHT) {
-            vga_scroll();
-            row = VIDEO_HEIGHT - 1;
-        }
-
-        // Index for the character to print.
-        text_index = ((row * VIDEO_WIDTH) + col) * 2;
-        // Index for the color information.
-        color_index = text_index + 1;
-        // Write the character the screen.
-        video[text_index] = *string;
-        // Set the background color.
-        video[color_index] = BACKGROUND_COLOR;
-
-        col++;
+    // Carriage returns.
+    if (c == '\r') {
+        // Set the column to zero.
+        col = 0;
+        return c;
     }
+
+    // Newlines.
+    if (c == '\n') {
+        // Set the column to zero (implicit carriage return),
+        // and increment the row.
+        col = 0;
+        row += 1;
+        return c;
+    }
+
+    // If we're past the right side of the screen,
+    // wrap to the next line.
+    if (col >= VIDEO_WIDTH) {
+        col = 0;
+        row += 1;
+    }
+
+    // If we're past the bottom of the screen,
+    // scroll the screen up one line, then print.
+    if (row >= VIDEO_HEIGHT) {
+        vga_scroll();
+        row = VIDEO_HEIGHT - 1;
+    }
+
+    // Index for the character to print.
+    text_index = ((row * VIDEO_WIDTH) + col) * 2;
+    // Index for the color information.
+    color_index = text_index + 1;
+    // Write the character the screen.
+    video[text_index] = (char)c;
+    // Set the background color.
+    video[color_index] = BACKGROUND_COLOR;
+
+    col++;
 
     // Update the displayed cursor position.
     vga_move_cursor(row, col);
+
+    return c;
+}
+
+// Print a string to the display.
+void vga_print(const char *string) {
+    for (; *string; string++) {
+        (void)vga_putchar(*string);
+    }
 }

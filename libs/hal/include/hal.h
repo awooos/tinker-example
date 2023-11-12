@@ -3,5 +3,6 @@
 
 void hal_init(void);
 void hal_print(const char *string);
+int hal_putchar(int c);
 
 #endif

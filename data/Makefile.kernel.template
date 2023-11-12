@@ -1,0 +1,122 @@
+NAME := {os_name}
+TARGET ?= {default_target}
+BUILD_TYPE ?= debug
+
+CC   := clang
+AS   := nasm
+AR   := ar
+LD   := ld
+QEMU ?= qemu-system-$(TARGET)
+
+override CFLAGS += -std=c11 -pedantic-errors -gdwarf-2 -nostdinc     \
+					-ffreestanding -fno-stack-protector -fno-builtin \
+					-fdiagnostics-show-option -Werror -Weverything   \
+					-Wno-cast-qual -Wno-missing-prototypes -Wno-vla \
+					-Wno-reserved-identifier
+override LDFLAGS += -nostdlib -g --whole-archive
+override ASFLAGS +=
+
+C_INCLUDES := -I include $(patsubst %,-I %,$(wildcard deps/*/include)) {includes}
+
+# NOTE: Includes go in reverse order, so config.mk overrides $(TARGET).mk.
+-include config.mk
+# If TARGET is not defined, this matches the make/.mk rule.
+include make/$(TARGET).mk
+
+ifeq ($(BUILD_TYPE),test)
+# 1. Don't reboot on exit.
+# 2. Add isa-debug-exit device, to allow to have qemu exit with a non-zero exit status.
+#
+# A normal shutdown results in qemu having a zero exit code, and using
+# isa-debug-exit results in a nonzero status code.
+override QEMU_FLAGS += -no-reboot -device isa-debug-exit,iobase=0xf4,iosize=0x04
+endif
+
+KERNEL_LDFLAGS := {kernel_ldflags}
+
+ALL_FILES := $(wildcard             \
+				deps/*/src/*/     \
+				deps/*/src/*/*/   \
+				deps/*/platform-$(TARGET)/*/    \
+				deps/*/platform-$(TARGET)/*/*/  \
+				libs/*/src/*    \
+				libs/*/src/*/*  \
+				libs/*/platform-$(TARGET)/* \
+				libs/*/platform-$(TARGET)/*/*/  \
+				src/*)
+SRCFILES := $(filter %.c,$(ALL_FILES)) $(filter %.asm,$(ALL_FILES))
+OBJFILES := $(patsubst %.asm, %.o, $(patsubst %.c, %.o, $(SRCFILES)))
+
+# Any directory directly under deps/ is treated as a library.
+LIBRARIES := $(patsubst %/,%.a,$(filter %/,$(wildcard deps/*/ libs/*/)))
+
+# ISO_FILE is the final location of the generated ISO.
+ISO_DIR := iso
+ISO_FILENAME := $(NAME)$(NAME_SUFFIX)-$(TARGET)-$(BUILD_TYPE).iso
+ISO_FILE := $(ISO_DIR)/$(ISO_FILENAME)
+
+all: iso
+
+# This rule is triggered by "include make/$(TARGET).mk" if TARGET
+# is undefined. This shouldn't be automated, so print an error.
+make/.mk:
+	$(error TARGET is undefined. Set it on the command line or in config.mk)
+
+generated_headers:
+	mkdir -p include/awoo
+	./bin/generate_build_info.py $(BUILD_TYPE) $(TARGET) ./include/awoo/build_info.h
+
+%.o: %.c generated_headers
+	$(CC) $(CFLAGS) $(C_INCLUDES) -c $< -o $@
+
+%.o: %.asm
+	$(AS) $(ASFLAGS) -o $@ $<
+
+kernel.exe: $(OBJFILES) $(LIBRARIES)
+	$(LD) -o $@ $(LDFLAGS) -L deps/ -L libs/ -T src/link-$(TARGET).ld src/0-start-$(TARGET).o {output_file_obj} $(KERNEL_LDFLAGS)
+
+%.a: $(OBJFILES)
+	$(AR) rcs $@ $(filter $*/%,$^)
+
+iso: $(ISO_FILE)
+$(ISO_FILE): kernel.exe
+	@mkdir -p iso
+	@cp -r assets/isofs/ ./
+	@cp kernel.exe isofs/
+	xorriso -report_about HINT -abort_on WARNING -as mkisofs -quiet -boot-info-table -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -input-charset utf-8 -o $(ISO_FILE) isofs
+
+test: lint
+	@$(MAKE) BUILD_TYPE=test qemu
+
+lint: generated_headers
+	clang-check $(filter %.c,$(SRCFILES)) -- $(C_INCLUDES)
+
+qemu: iso
+	$(QEMU) $(QEMU_FLAGS) -vga std -serial stdio -cdrom $(ISO_FILE)
+
+qemu-monitor: iso
+	$(QEMU) $(QEMU_FLAGS) -monitor stdio -cdrom $(ISO_FILE)
+
+# Fetch all submodules.
+fetch-submodules:
+	git submodule update --recursive --init
+
+# Update to the latest available versions of all submodules.
+update-submodules:
+	git submodule update --recursive --remote --init
+
+docs:
+	doxygen doxygen.conf
+
+clean:
+	@rm -rf docs/
+	@rm -f $(OBJFILES) $(LIBRARIES) $(EXECUTABLES)
+	@rm -rf ./isofs
+	@rm -f $(ISO_DIR)/*.iso
+	@rm -f include/awoo/build_info.h
+
+.PHONY: all iso clean test qemu qemu-monitor clean fetch-submodules update-submodules generated_headers docs
+
+# Don't auto-delete .o files.
+.SECONDARY: $(OBJFILES)
+

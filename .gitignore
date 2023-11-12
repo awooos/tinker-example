@@ -1,7 +1,9 @@
-tinker/
+/deps/
+*.a
 *.o
 *.exe
 Makefile
-src/kernel.c
+/src/kernel.c
 isofs/
-/include/awoo/build_info.h
+/include/build_info.h
+/Makefile.kernel

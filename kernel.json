@@ -5,7 +5,7 @@
     {
       "name": "flail",
       "origin": "https://github.com/awooos/flail.git#master",
-      "initializeArgs": ["\"tinker-generated kernel\"", "&print"],
+      "initializeArgs": ["\"tinker-generated kernel\"", "&hal_putchar"],
       "run": false
     },
     {
@@ -17,12 +17,12 @@
     {
       "name": "ali",
       "origin": "https://github.com/awooos/ali.git#master",
-      "initializeArgs": ["&_dmm_malloc", "&_dmm_free", "&_dmm_realloc"],
+      "initializeArgs": ["&dmm_malloc_", "&dmm_free_", "&dmm_realloc_"],
       "run": false
     },
     {
       "name": "tinker",
-      "origin": "https://github.com/awooos/tinker.git#master",
+      "origin": "https://github.com/awooos/tinker.git#main",
       "initialize": false,
       "run": false
     },
